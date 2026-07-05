@@ -48,8 +48,8 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
     # Register static file routes FIRST
     @app.get("/favicon.ico")
-def favicon():
-    return send_from_directory(frontend_root, "favicon.ico")
+    def favicon():
+        return send_from_directory(frontend_root, "favicon.ico")
 
     @app.get("/assets/<path:filename>")
     def frontend_assets(filename: str) -> object:
