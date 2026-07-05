@@ -3,7 +3,7 @@ const BASE_URL = 'https://smartbi-backend.onrender.com';
 const SmartBiApi = (() => {
   async function request(path, options = {}) {
     const response = await fetch(`${BASE_URL}${path}`, {
-      credentials: 'same-origin',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...(options.headers || {}),

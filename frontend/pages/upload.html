@@ -51,12 +51,8 @@
       results.innerHTML = '';
 
       try {
-        const response = await fetch('/api/uploads/', {
-          method: 'POST',
-          credentials: 'include',
-          body: new FormData(e.target)
-        });
-        const data = await response.json();
+        const formData = new FormData(e.target);
+        const response = await SmartBiApi.uploadFiles(formData);    const data = await response.json();
 
         if (!response.ok) {
           msg.className = 'msg error';
