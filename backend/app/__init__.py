@@ -1,4 +1,7 @@
 from flask import Flask, jsonify
+from flask_cors import CORS
+import os
+
 from pathlib import Path
 from flask import send_from_directory
 
@@ -38,7 +41,10 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     # Initialize configuration
     config_class.init_app()
 
+    allowed_origin = os.getenv('SMARTBI_FRONTEND_URL', '*')
     init_logging(app)
+    # Apply CORS after app creation
+    CORS(app, resources={r"/api/*": {"origins": allowed_origin}}, supports_credentials=True)
 
     # Register static file routes FIRST
     @app.get("/assets/<path:filename>")
