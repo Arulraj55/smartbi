@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - SmartBI</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <span class="logo-icon">S</span>
+                <div class="logo-text">
+                    <div class="logo-title">SmartBI</div>
+                    <div class="logo-subtitle">BUSINESS INTELLIGENCE</div>
+                </div>
+            </div>
+        </div>
+        <ul class="nav-menu">
+            <li><a href="../index.html">🏠 Home</a></li>
+            <li><a href="upload.html">📤 Upload</a></li>
+            <li><a href="dashboard.html">📊 Dashboard</a></li>
+            <li><a href="reports.html">📄 Reports</a></li>
+            <li><a href="history.html">📜 History</a></li>
+        </ul>
+        <div class="sidebar-footer">
+            <div class="login-section">
+                <h3>🔐 Create Account</h3>
+                <form id="signupForm">
+                    <input type="text" id="fullName" placeholder="Full Name" autocomplete="name">
+                    <input type="text" id="username" placeholder="Username" required autocomplete="username">
+                    <input type="email" id="email" placeholder="Email" required autocomplete="email">
+                    <input type="password" id="password" placeholder="Password (min 6 chars)" required autocomplete="new-password">
+                    <button type="submit" class="btn-primary">Sign Up →</button>
+                </form>
+                <div id="signupMessage" class="auth-message" style="display:none;"></div>
+                <p style="margin-top: 1rem; text-align: center; font-size: 0.9rem;">
+                    Already have an account? <a href="upload.html" style="color: var(--accent-cyan);">Login here</a>
+                </p>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <header class="page-header">
+            <div class="header-content">
+                <h1>✨ SMART BUSINESS INTELLIGENCE</h1>
+                <p class="subtitle">Create your account to start analyzing your business data</p>
+            </div>
+        </header>
+
+        <section class="content-section">
+            <div class="card">
+                <div class="card-icon">👥</div>
+                <h2>Join SmartBI Platform</h2>
+                <p>Create an account to upload Excel files, auto-detect business domains, and generate powerful insights and KPIs.</p>
+                
+                <div class="feature-grid" style="margin-top: 2rem;">
+                    <div class="feature-card">
+                        <div class="feature-icon">🎯</div>
+                        <h3>Domain Detection</h3>
+                        <p>Auto-identify Placement, HR, Sales, Inventory domains</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">✅</div>
+                        <h3>Data Validation</h3>
+                        <p>Comprehensive data quality checks</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Power BI Ready</h3>
+                        <p>Pre-built SQL views for reporting</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔒</div>
+                        <h3>Secure Storage</h3>
+                        <p>Encrypted data in PostgreSQL</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="../assets/api.js"></script>
+    <script>
+        document.getElementById('signupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fullName = document.getElementById('fullName').value.trim();
+            const username = document.getElementById('username').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const messageEl = document.getElementById('signupMessage');
+            
+            if (password.length < 6) {
+                messageEl.textContent = 'Password must be at least 6 characters.';
+                messageEl.className = 'auth-message error';
+                messageEl.style.display = 'block';
+                return;
+            }
+            
+            messageEl.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ username, email, password, full_name: fullName })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    messageEl.textContent = data.message + ' Redirecting to login...';
+                    messageEl.className = 'auth-message success';
+                    messageEl.style.display = 'block';
+                    setTimeout(() => window.location.href = 'upload.html', 2000);
+                } else {
+                    messageEl.textContent = data.message || 'Signup failed.';
+                    messageEl.className = 'auth-message error';
+                    messageEl.style.display = 'block';
+                }
+            } catch (error) {
+                messageEl.textContent = 'Error: Cannot connect to server. Is backend running?';
+                messageEl.className = 'auth-message error';
+                messageEl.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

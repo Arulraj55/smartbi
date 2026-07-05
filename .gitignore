@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Flask
+instance/
+.webassets-cache
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Uploads
+backend/uploads/
+backend/cleaned/
+backend/processed/
+backend/original/
+uploads/
+cleaned/
+processed/
+original/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite3
+
+# Power BI
+*.pbix
+
+# Documentation
+documentation/screenshots/*.png
+documentation/screenshots/*.jpg
+!documentation/screenshots/README.md
+
+# Temporary files
+*.tmp
+*.bak

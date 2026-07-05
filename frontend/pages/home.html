@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartBI - Home</title>
+  <link rel="stylesheet" href="/assets/shared.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">SmartBI</div>
+    <div class="navbar-menu">
+      <a href="/home" class="active">Home</a>
+      <a href="/upload">Upload</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/compare">Compare</a>
+      <a href="/reports">Reports</a>
+      <a href="/history">History</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="page-hero">
+      <h1>Welcome to SmartBI</h1>
+      <p>Business Intelligence Platform</p>
+    </div>
+
+    <div class="cards-row-3">
+      <div class="card" onclick="window.location.href='/upload'">
+        <div class="card-icon">📤</div>
+        <h2>Upload</h2>
+        <p>Upload Excel files to analyze your business data</p>
+      </div>
+      <div class="card" onclick="window.location.href='/dashboard'">
+        <div class="card-icon">📊</div>
+        <h2>Dashboard</h2>
+        <p>View AI-powered analytics and KPIs from your data</p>
+      </div>
+      <div class="card" onclick="window.location.href='/reports'">
+        <div class="card-icon">📄</div>
+        <h2>Reports</h2>
+        <p>Generate and download reports in PDF, Excel, CSV</p>
+      </div>
+    </div>
+
+    <div class="cards-row-2">
+      <div class="card" onclick="window.location.href='/history'">
+        <div class="card-icon">📅</div>
+        <h2>History</h2>
+        <p>View all your previous uploads and results</p>
+      </div>
+      <div class="card" onclick="window.location.href='/compare'">
+        <div class="card-icon">⚖️</div>
+        <h2>Compare</h2>
+        <p>Compare two datasets and analyze trends</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function logout() {
+      try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
+      window.location.href = '/';
+    }
+  </script>
+</body>
+</html>

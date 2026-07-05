@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports - SmartBI</title>
+  <link rel="stylesheet" href="/assets/shared.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">SmartBI</div>
+    <div class="navbar-menu">
+      <a href="/home">Home</a>
+      <a href="/upload">Upload</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/compare">Compare</a>
+      <a href="/reports" class="active">Reports</a>
+      <a href="/history">History</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="content-card">
+      <h2>📄 Generate Report</h2>
+      <form id="reportForm">
+        <div class="form-group">
+          <label>Select Upload</label>
+          <select name="upload_id" id="uploadSelect" required>
+            <option value="">Loading uploads...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Format</label>
+          <select name="format">
+            <option value="pdf">PDF</option>
+            <option value="excel">Excel</option>
+            <option value="csv">CSV</option>
+            <option value="json">JSON</option>
+          </select>
+        </div>
+        <button type="submit" class="btn">📥 Download Report</button>
+      </form>
+      <div id="reportMsg" class="msg"></div>
+    </div>
+  </div>
+
+  <script>
+    async function logout() {
+      try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
+      window.location.href = '/';
+    }
+
+    async function loadUploads() {
+      try {
+        const res = await fetch('/api/history/uploads', { credentials: 'include' });
+        const data = await res.json();
+        const select = document.getElementById('uploadSelect');
+        const items = data.items || [];
+        if (items.length === 0) {
+          select.innerHTML = '<option value="">No uploads available</option>';
+          return;
+        }
+        select.innerHTML = items.map(i => `<option value="${i.id}">${i.file_name} — ${i.domain_name}</option>`).join('');
+      } catch(e) {
+        document.getElementById('uploadSelect').innerHTML = '<option value="">Failed to load</option>';
+      }
+    }
+
+    document.getElementById('reportForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('reportMsg');
+      const data = new FormData(e.target);
+      const uploadId = data.get('upload_id');
+      const format = data.get('format');
+
+      if (!uploadId) {
+        msg.className = 'msg error';
+        msg.textContent = 'Please select an upload first.';
+        return;
+      }
+
+      msg.className = 'msg info';
+      msg.textContent = '⏳ Generating report...';
+
+      try {
+        const res = await fetch(`/api/reports/download?upload_id=${uploadId}&format=${format}`, {
+          credentials: 'include'
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          msg.className = 'msg error';
+          msg.textContent = err.message || 'Report generation failed.';
+          return;
+        }
+
+        const blob = await res.blob();
+        const disposition = res.headers.get('content-disposition') || '';
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        const filename = match ? match[1] : `report.${format}`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click();
+        a.remove(); URL.revokeObjectURL(url);
+
+        msg.className = 'msg success';
+        msg.textContent = '✅ Report downloaded!';
+      } catch(err) {
+        msg.className = 'msg error';
+        msg.textContent = 'Connection error.';
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', loadUploads);
+  </script>
+</body>
+</html>

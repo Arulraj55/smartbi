@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - SmartBI</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="/assets/shared.css">
+  <style>
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1.0); }
+    }
+    .insights-chat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 0;
+    }
+    @media (max-width: 768px) { .insights-chat-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">SmartBI</div>
+    <div class="navbar-menu">
+      <a href="/home">Home</a>
+      <a href="/upload">Upload</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/compare">Compare</a>
+      <a href="/reports">Reports</a>
+      <a href="/history">History</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="content-card">
+      <h2>📊 Dashboard</h2>
+      <select id="uploadSelect" class="upload-select" onchange="loadDashboard()">
+        <option value="">Select an upload...</option>
+      </select>
+      <div id="mainContent">
+        <div class="msg info">📤 Upload Excel files first, then select an upload above to see analytics.</div>
+      </div>
+    </div>
+
+    <div id="kpiSection" style="display:none;" class="content-card">
+      <div id="aiBanner" class="ai-banner" style="display:none;">
+        <span class="ai-badge">🤖 AI Powered</span>
+        <p id="aiReason"></p>
+      </div>
+      <h2>Key Performance Indicators</h2>
+      <div id="kpis" class="kpis"></div>
+    </div>
+
+    <div id="chartsSection" class="charts-grid" style="margin-bottom:24px;"></div>
+
+    <div class="insights-chat-grid">
+      <div id="insightsSection" style="display:none;" class="content-card">
+        <h2>💡 AI Insights</h2>
+        <ul id="insightsList" class="insights-list"></ul>
+      </div>
+
+      <div id="chatSection" style="display:none;" class="content-card">
+        <h2>💬 AI Data Assistant</h2>
+        <p style="font-size:13px;color:#888;margin-bottom:15px;">Ask questions about your dataset in plain English.</p>
+        <div id="chatLog" style="min-height:220px;max-height:320px;overflow-y:auto;border:1px solid #e8e8ff;border-radius:10px;padding:15px;background:#f9f9ff;margin-bottom:15px;display:flex;flex-direction:column;gap:10px;">
+          <div style="background:#e8e8ff;padding:10px 14px;border-radius:8px;align-self:start;max-width:85%;font-size:14px;color:#333;line-height:1.5;">
+            Hello! Ask me anything about this dataset.
+          </div>
+        </div>
+        <form id="chatForm" style="display:flex;gap:10px;" onsubmit="askAssistant(event)">
+          <input type="text" id="chatInput" placeholder="Ask a question..." style="flex:1;padding:12px 15px;border:2px solid #e8e8ff;border-radius:8px;font-size:14px;outline:none;" onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e8e8ff'">
+          <button type="submit" style="background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;padding:0 20px;font-weight:700;cursor:pointer;">Send</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const chartInstances = {};
+
+    async function logout() {
+      try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
+      window.location.href = '/';
+    }
+
+    async function loadUploads() {
+      try {
+        const res = await fetch('/api/history/uploads', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const select = document.getElementById('uploadSelect');
+        const items = data.items || [];
+        if (!items.length) return;
+        items.forEach(item => {
+          const opt = document.createElement('option');
+          opt.value = item.id;
+          opt.textContent = `${item.file_name} — ${item.domain_name}`;
+          select.appendChild(opt);
+        });
+        select.value = items[0].id;
+        loadDashboard();
+      } catch(e) {}
+    }
+
+    async function loadDashboard() {
+      const uploadId = document.getElementById('uploadSelect').value;
+      if (!uploadId) return;
+
+      document.getElementById('mainContent').innerHTML = '<div class="msg info">⏳ Loading analytics...</div>';
+      document.getElementById('kpiSection').style.display = 'none';
+      document.getElementById('chartsSection').innerHTML = '';
+      document.getElementById('insightsSection').style.display = 'none';
+      document.getElementById('chatSection').style.display = 'none';
+
+      try {
+        const res = await fetch(`/api/analytics/summary?upload_id=${uploadId}`, { credentials: 'include' });
+        if (!res.ok) {
+          document.getElementById('mainContent').innerHTML = '<div class="msg error">❌ Failed to load analytics.</div>';
+          return;
+        }
+        const data = await res.json();
+        document.getElementById('mainContent').style.display = 'none';
+        renderKPIs(data.kpis || {});
+        document.getElementById('kpiSection').style.display = 'block';
+        document.getElementById('chatSection').style.display = 'block';
+
+        const aiRes = await fetch(`/api/analytics/ai?upload_id=${uploadId}`, { credentials: 'include' });
+        if (aiRes.ok) {
+          const aiData = await aiRes.json();
+          const ai = aiData.ai || {};
+          if (ai.ai_powered) {
+            document.getElementById('aiReason').textContent = `Domain: ${ai.domain} — ${ai.reason}`;
+            document.getElementById('aiBanner').style.display = 'flex';
+            if (ai.computed_kpis && Object.keys(ai.computed_kpis).length > 0) renderKPIs(ai.computed_kpis);
+            renderAICharts(ai.computed_charts || []);
+            renderInsights(ai.insights || []);
+          } else {
+            renderDefaultCharts(data);
+          }
+        } else {
+          renderDefaultCharts(data);
+        }
+      } catch(e) {
+        document.getElementById('mainContent').innerHTML = '<div class="msg error">❌ Error: ' + e.message + '</div>';
+      }
+    }
+
+    function renderKPIs(kpis) {
+      const container = document.getElementById('kpis');
+      const entries = Object.entries(kpis)
+        .filter(([k, v]) => !k.startsWith('_') && (typeof v === 'number' || typeof v === 'string'))
+        .slice(0, 4);
+      if (!entries.length) { container.innerHTML = '<p style="color:#999;">No KPIs available</p>'; return; }
+      container.innerHTML = entries.map(([k, v]) => `
+        <div class="kpi">
+          <h3>${typeof v === 'number' ? v.toLocaleString() : v}</h3>
+          <p>${k.replace(/_/g, ' ').replace(/%/g, '').trim()}</p>
+        </div>
+      `).join('');
+    }
+
+    function renderAICharts(charts) {
+      const section = document.getElementById('chartsSection');
+      section.innerHTML = '';
+      if (!charts.length) return;
+      const colors = ['#667eea','#764ba2','#f093fb','#4facfe','#43e97b','#fa709a','#fee140','#a18cd1'];
+      charts.forEach((chart, i) => {
+        const card = document.createElement('div');
+        card.className = 'chart-card';
+        card.innerHTML = `<h3>${chart.title}</h3><p>${chart.description}</p><canvas id="chart_${i}"></canvas>`;
+        section.appendChild(card);
+        const ctx = document.getElementById(`chart_${i}`).getContext('2d');
+        if (chartInstances[i]) chartInstances[i].destroy();
+        chartInstances[i] = new Chart(ctx, {
+          type: chart.type || 'bar',
+          data: {
+            labels: chart.labels,
+            datasets: [{
+              label: chart.title,
+              data: chart.values,
+              backgroundColor: chart.type === 'line' ? 'rgba(102,126,234,0.2)' : chart.labels.map((_, j) => colors[j % colors.length]),
+              borderColor: chart.type === 'line' ? '#667eea' : chart.labels.map((_, j) => colors[j % colors.length]),
+              borderWidth: 2,
+              fill: chart.type === 'line',
+              tension: 0.4,
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: chart.type === 'pie' || chart.type === 'doughnut' } },
+            scales: chart.type === 'pie' || chart.type === 'doughnut' ? {} : { y: { beginAtZero: true } }
+          }
+        });
+      });
+    }
+
+    function renderDefaultCharts(data) {
+      const section = document.getElementById('chartsSection');
+      section.innerHTML = '';
+      [{ id: 'cp', title: 'Primary Analytics', d: data.charts?.primary, type: 'bar' },
+       { id: 'cs', title: 'Secondary Analytics', d: data.charts?.secondary, type: 'line' }]
+      .forEach(c => {
+        if (!c.d?.labels?.length) return;
+        const card = document.createElement('div');
+        card.className = 'chart-card';
+        card.innerHTML = `<h3>${c.title}</h3><canvas id="${c.id}"></canvas>`;
+        section.appendChild(card);
+        const ctx = document.getElementById(c.id).getContext('2d');
+        if (chartInstances[c.id]) chartInstances[c.id].destroy();
+        chartInstances[c.id] = new Chart(ctx, {
+          type: c.type,
+          data: { labels: c.d.labels, datasets: [{ label: c.d.label || c.title, data: c.d.values, backgroundColor: ['#667eea','#764ba2','#f093fb','#4facfe','#43e97b'], borderColor: '#667eea', fill: c.type === 'line', tension: 0.4 }] },
+          options: { responsive: true }
+        });
+      });
+    }
+
+    function renderInsights(insights) {
+      if (!insights.length) return;
+      document.getElementById('insightsList').innerHTML = insights.map(i => `<li>${i}</li>`).join('');
+      document.getElementById('insightsSection').style.display = 'block';
+    }
+
+    async function askAssistant(e) {
+      e.preventDefault();
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text) return;
+      const uploadId = document.getElementById('uploadSelect').value;
+      if (!uploadId) return;
+      const log = document.getElementById('chatLog');
+      log.insertAdjacentHTML('beforeend', `<div style="background:#667eea;color:white;padding:10px 14px;border-radius:8px;align-self:end;max-width:85%;font-size:14px;">${text.replace(/</g,'&lt;')}</div>`);
+      input.value = '';
+      const tid = 'typing_' + Date.now();
+      log.insertAdjacentHTML('beforeend', `<div id="${tid}" style="background:#e8e8ff;padding:10px 14px;border-radius:8px;align-self:start;font-size:14px;display:flex;gap:5px;align-items:center;"><span style="animation:bounce 1.4s infinite both;display:inline-block;width:6px;height:6px;background:#667eea;border-radius:50%;"></span><span style="animation:bounce 1.4s infinite both;animation-delay:0.2s;display:inline-block;width:6px;height:6px;background:#667eea;border-radius:50%;"></span><span style="animation:bounce 1.4s infinite both;animation-delay:0.4s;display:inline-block;width:6px;height:6px;background:#667eea;border-radius:50%;"></span></div>`);
+      log.scrollTop = log.scrollHeight;
+      try {
+        const res = await fetch('/api/analytics/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ upload_id: uploadId, message: text }) });
+        document.getElementById(tid).remove();
+        const d = await res.json();
+        log.insertAdjacentHTML('beforeend', `<div style="background:#e8e8ff;padding:10px 14px;border-radius:8px;align-self:start;max-width:85%;font-size:14px;color:#333;line-height:1.5;">${(d.response || 'No response.').replace(/\n/g,'<br>')}</div>`);
+      } catch(err) {
+        document.getElementById(tid)?.remove();
+        log.insertAdjacentHTML('beforeend', `<div style="background:#fee;color:#c33;padding:10px 14px;border-radius:8px;font-size:14px;">Error: ${err.message}</div>`);
+      }
+      log.scrollTop = log.scrollHeight;
+    }
+
+    window.addEventListener('DOMContentLoaded', loadUploads);
+  </script>
+</body>
+</html>

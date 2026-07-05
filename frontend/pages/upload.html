@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload - SmartBI</title>
+  <link rel="stylesheet" href="/assets/shared.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">SmartBI</div>
+    <div class="navbar-menu">
+      <a href="/home">Home</a>
+      <a href="/upload" class="active">Upload</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/compare">Compare</a>
+      <a href="/reports">Reports</a>
+      <a href="/history">History</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="content-card">
+      <h2>📤 Upload Excel Files</h2>
+      <form id="uploadForm" enctype="multipart/form-data">
+        <div class="form-group">
+          <label>Select Files (.xlsx, .xls)</label>
+          <input type="file" name="files" accept=".xlsx,.xls" multiple required>
+        </div>
+        <button type="submit" class="btn">🚀 Process Data</button>
+      </form>
+      <div id="uploadMsg" class="msg"></div>
+    </div>
+
+    <div id="results"></div>
+  </div>
+
+  <script>
+    async function logout() {
+      try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
+      window.location.href = '/';
+    }
+
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('uploadMsg');
+      const results = document.getElementById('results');
+      msg.className = 'msg info';
+      msg.textContent = '⏳ Processing files... This may take a moment.';
+      results.innerHTML = '';
+
+      try {
+        const response = await fetch('/api/uploads/', {
+          method: 'POST',
+          credentials: 'include',
+          body: new FormData(e.target)
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          msg.className = 'msg error';
+          msg.textContent = data.message || 'Upload failed';
+          return;
+        }
+
+        msg.className = 'msg success';
+        msg.textContent = '✅ Files processed successfully!';
+
+        results.innerHTML = (data.items || []).map(item => `
+          <div class="result-item">
+            <h3>📄 ${item.file_name}</h3>
+            <p><strong>Domain:</strong> ${item.domain_name || 'Unknown'} &nbsp;|&nbsp; <strong>Confidence:</strong> ${item.confidence || 0}%</p>
+            <p><strong>Rows:</strong> ${item.row_count || 0} &nbsp;|&nbsp; <strong>Status:</strong> ${item.status}</p>
+            ${item.reason ? `<p style="color:#c33;"><strong>Error:</strong> ${item.reason}</p>` : ''}
+          </div>
+        `).join('');
+
+        e.target.reset();
+      } catch (err) {
+        msg.className = 'msg error';
+        msg.textContent = 'Connection error. Is backend running?';
+      }
+    });
+  </script>
+</body>
+</html>
