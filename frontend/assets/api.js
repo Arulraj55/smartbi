@@ -1,6 +1,8 @@
+const BASE_URL = 'https://smartbi-backend.onrender.com';
+
 const SmartBiApi = (() => {
   async function request(path, options = {}) {
-    const response = await fetch(path, {
+    const response = await fetch(`${BASE_URL}${path}`, {
       credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
@@ -25,7 +27,7 @@ const SmartBiApi = (() => {
       return request('/api/auth/logout', { method: 'POST' });
     },
     uploadFiles(formData) {
-      return fetch('/api/uploads/', {
+      return fetch(`${BASE_URL}/api/uploads/`, {
         method: 'POST',
         credentials: 'same-origin',
         body: formData,
