@@ -29,7 +29,7 @@ const SmartBiApi = (() => {
     uploadFiles(formData) {
       return fetch(`${BASE_URL}/api/uploads/`, {
         method: 'POST',
-        credentials: 'same-origin',
+        credentials: 'include',
         body: formData,
       }).then(async (response) => ({ ok: response.ok, status: response.status, data: await response.json() }));
     },

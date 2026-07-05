@@ -47,6 +47,10 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     CORS(app, resources={r"/api/*": {"origins": allowed_origin}}, supports_credentials=True)
 
     # Register static file routes FIRST
+    @app.get("/favicon.ico")
+def favicon():
+    return send_from_directory(frontend_root, "favicon.ico")
+
     @app.get("/assets/<path:filename>")
     def frontend_assets(filename: str) -> object:
         return send_from_directory(frontend_root / "assets", filename)
