@@ -103,7 +103,7 @@
             messageEl.style.display = 'none';
             
             try {
-                const response = await fetch('/api/auth/signup', {
+                const response = await fetch(`${BASE_URL}/api/auth/signup`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'same-origin',
