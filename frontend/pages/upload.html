@@ -55,7 +55,7 @@
         const uploadResult = await SmartBiApi.uploadFiles(formData);
         const data = uploadResult.data;
 
-        if (!response.ok) {
+        if (!uploadResult.ok) {
           msg.className = 'msg error';
           msg.textContent = data.message || 'Upload failed';
           return;
