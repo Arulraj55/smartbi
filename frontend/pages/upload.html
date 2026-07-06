@@ -52,7 +52,8 @@
 
       try {
         const formData = new FormData(e.target);
-        const response = await SmartBiApi.uploadFiles(formData);    const data = await response.json();
+        const uploadResult = await SmartBiApi.uploadFiles(formData);
+        const data = uploadResult.data;
 
         if (!response.ok) {
           msg.className = 'msg error';
