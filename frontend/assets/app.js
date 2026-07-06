@@ -117,7 +117,7 @@ function bindSignupForm() {
     }
     
     try {
-      const response = await fetch('/api/auth/signup', {
+      const response = await fetch('https://smartbi-backend.onrender.com/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
@@ -355,7 +355,7 @@ function bindReportDownloadForm() {
     }
 
     try {
-      const response = await fetch(`/api/reports/download?${params.toString()}`, {
+      const response = await fetch(`https://smartbi-backend.onrender.com/api/reports/download?${params.toString()}`, {
         credentials: 'same-origin',
       });
       

@@ -31,14 +31,14 @@
 
   <script>
     async function logout() {
-      try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
+      try { await fetch('https://smartbi-backend.onrender.com/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
       window.location.href = '/';
     }
 
     async function loadHistory() {
       const container = document.getElementById('historyContent');
       try {
-        const res = await fetch('/api/history/uploads', { credentials: 'include' });
+        const res = await fetch('https://smartbi-backend.onrender.com/api/history/uploads', { credentials: 'include' });
         const data = await res.json();
 
         if (!res.ok) {

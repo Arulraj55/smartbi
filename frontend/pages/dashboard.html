@@ -82,13 +82,13 @@
     const chartInstances = {};
 
     async function logout() {
-      try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
+      try { await fetch('https://smartbi-backend.onrender.com/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
       window.location.href = '/';
     }
 
     async function loadUploads() {
       try {
-        const res = await fetch('/api/history/uploads', { credentials: 'include' });
+        const res = await fetch('https://smartbi-backend.onrender.com/api/history/uploads', { credentials: 'include' });
         if (!res.ok) return;
         const data = await res.json();
         const select = document.getElementById('uploadSelect');
@@ -116,7 +116,7 @@
       document.getElementById('chatSection').style.display = 'none';
 
       try {
-        const res = await fetch(`/api/analytics/summary?upload_id=${uploadId}`, { credentials: 'include' });
+        const res = await fetch(`https://smartbi-backend.onrender.com/api/analytics/summary?upload_id=${uploadId}`, { credentials: 'include' });
         if (!res.ok) {
           document.getElementById('mainContent').innerHTML = '<div class="msg error">❌ Failed to load analytics.</div>';
           return;
@@ -127,7 +127,7 @@
         document.getElementById('kpiSection').style.display = 'block';
         document.getElementById('chatSection').style.display = 'block';
 
-        const aiRes = await fetch(`/api/analytics/ai?upload_id=${uploadId}`, { credentials: 'include' });
+        const aiRes = await fetch(`https://smartbi-backend.onrender.com/api/analytics/ai?upload_id=${uploadId}`, { credentials: 'include' });
         if (aiRes.ok) {
           const aiData = await aiRes.json();
           const ai = aiData.ai || {};
@@ -238,7 +238,7 @@
       log.insertAdjacentHTML('beforeend', `<div id="${tid}" style="background:#e8e8ff;padding:10px 14px;border-radius:8px;align-self:start;font-size:14px;display:flex;gap:5px;align-items:center;"><span style="animation:bounce 1.4s infinite both;display:inline-block;width:6px;height:6px;background:#667eea;border-radius:50%;"></span><span style="animation:bounce 1.4s infinite both;animation-delay:0.2s;display:inline-block;width:6px;height:6px;background:#667eea;border-radius:50%;"></span><span style="animation:bounce 1.4s infinite both;animation-delay:0.4s;display:inline-block;width:6px;height:6px;background:#667eea;border-radius:50%;"></span></div>`);
       log.scrollTop = log.scrollHeight;
       try {
-        const res = await fetch('/api/analytics/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ upload_id: uploadId, message: text }) });
+        const res = await fetch('https://smartbi-backend.onrender.com/api/analytics/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ upload_id: uploadId, message: text }) });
         document.getElementById(tid).remove();
         const d = await res.json();
         log.insertAdjacentHTML('beforeend', `<div style="background:#e8e8ff;padding:10px 14px;border-radius:8px;align-self:start;max-width:85%;font-size:14px;color:#333;line-height:1.5;">${(d.response || 'No response.').replace(/\n/g,'<br>')}</div>`);

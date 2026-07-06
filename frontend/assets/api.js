@@ -31,7 +31,11 @@ const SmartBiApi = (() => {
         method: 'POST',
         credentials: 'include',
         body: formData,
-      }).then(async (response) => ({ ok: response.ok, status: response.status, data: await response.json() }));
+      }).then(async (response) => {
+        const contentType = response.headers.get('content-type') || '';
+        const data = contentType.includes('application/json') ? await response.json() : null;
+        return { ok: response.ok, status: response.status, data };
+      });
     },
     get(path) {
       return request(path, { method: 'GET' });

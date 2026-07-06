@@ -47,13 +47,13 @@
 
   <script>
     async function logout() {
-      try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
+      try { await fetch('https://smartbi-backend.onrender.com/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
       window.location.href = '/';
     }
 
     async function loadUploads() {
       try {
-        const res = await fetch('/api/history/uploads', { credentials: 'include' });
+        const res = await fetch('https://smartbi-backend.onrender.com/api/history/uploads', { credentials: 'include' });
         const data = await res.json();
         const select = document.getElementById('uploadSelect');
         const items = data.items || [];
@@ -84,7 +84,7 @@
       msg.textContent = '⏳ Generating report...';
 
       try {
-        const res = await fetch(`/api/reports/download?upload_id=${uploadId}&format=${format}`, {
+        const res = await fetch(`https://smartbi-backend.onrender.com/api/reports/download?upload_id=${uploadId}&format=${format}`, {
           credentials: 'include'
         });
 

@@ -38,7 +38,7 @@
 
   <script>
     async function logout() {
-      try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
+      try { await fetch('https://smartbi-backend.onrender.com/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
       window.location.href = '/';
     }
 
@@ -57,14 +57,14 @@
 
         if (!uploadResult.ok) {
           msg.className = 'msg error';
-          msg.textContent = data.message || 'Upload failed';
+          msg.textContent = (data && data.message) ? data.message : `Upload failed (Status: ${uploadResult.status})`;
           return;
         }
 
         msg.className = 'msg success';
         msg.textContent = '✅ Files processed successfully!';
 
-        results.innerHTML = (data.items || []).map(item => `
+        results.innerHTML = (data && data.items ? data.items : []).map(item => `
           <div class="result-item">
             <h3>📄 ${item.file_name}</h3>
             <p><strong>Domain:</strong> ${item.domain_name || 'Unknown'} &nbsp;|&nbsp; <strong>Confidence:</strong> ${item.confidence || 0}%</p>
@@ -75,8 +75,9 @@
 
         e.target.reset();
       } catch (err) {
+        console.error("Upload error caught:", err);
         msg.className = 'msg error';
-        msg.textContent = 'Connection error. Is backend running?';
+        msg.textContent = 'Connection error. Is backend running? (' + err.message + ')';
       }
     });
   </script>

@@ -239,13 +239,13 @@
     const chartInstances = {};
 
     async function logout() {
-      try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
+      try { await fetch('https://smartbi-backend.onrender.com/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(e) {}
       window.location.href = '/';
     }
 
     async function loadUploads() {
       try {
-        const res = await fetch('/api/history/uploads', { credentials: 'include' });
+        const res = await fetch('https://smartbi-backend.onrender.com/api/history/uploads', { credentials: 'include' });
         if (!res.ok) return;
         const data = await res.json();
         uploads = data.items || [];
@@ -324,7 +324,7 @@
       document.getElementById('comparisonResults').style.display = 'none';
 
       try {
-        const res = await fetch(`/api/analytics/compare?upload_a=${idA}&upload_b=${idB}&chart=true`, { credentials: 'include' });
+        const res = await fetch(`https://smartbi-backend.onrender.com/api/analytics/compare?upload_a=${idA}&upload_b=${idB}&chart=true`, { credentials: 'include' });
         
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
