@@ -20,7 +20,16 @@ def get_database_service() -> DatabaseService:
 @uploads_bp.get("/")
 @login_required
 def list_uploads() -> tuple[dict[str, object], int]:
-    return jsonify({"items": []}), 200
+    # Fetch upload metadata from the database
+    database_service = get_database_service()
+    uploads = database_service.fetch_all(
+        """
+        SELECT id, file_name, domain_name, confidence, row_count, created_at
+        FROM smartbi_uploads
+        ORDER BY created_at DESC
+        """
+    )
+    return jsonify({"items": uploads}), 200
 
 
 @uploads_bp.post("/")

@@ -1,4 +1,4 @@
-const BASE_URL = 'https://smartbi-backend.onrender.com';
+const BASE_URL = window.SMARTBI_BACKEND_URL || 'https://smartbi-backend.onrender.com';
 
 const SmartBiApi = (() => {
   async function request(path, options = {}) {
