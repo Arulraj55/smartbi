@@ -18,8 +18,8 @@ class Config:
     ADMIN_USERNAME = os.getenv("SMARTBI_ADMIN_USERNAME", "admin")
     ADMIN_PASSWORD = os.getenv("SMARTBI_ADMIN_PASSWORD", "admin123")
     
-    # Session configuration
-    SESSION_COOKIE_SECURE = False
+    # Session configuration — SECURE must be True on HTTPS (Render/production)
+    SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     PERMANENT_SESSION_LIFETIME = int(os.getenv("SMARTBI_SESSION_LIFETIME", str(3600)))
