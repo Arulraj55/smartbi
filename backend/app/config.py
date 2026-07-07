@@ -24,9 +24,12 @@ class Config:
     SESSION_COOKIE_SAMESITE = 'Lax'
     PERMANENT_SESSION_LIFETIME = int(os.getenv("SMARTBI_SESSION_LIFETIME", str(3600)))
     
-    # Ensure upload directories exist
+    # Ensure upload directories exist (best-effort; skipped on read-only filesystems)
     @classmethod
     def init_app(cls):
-        """Initialize application directories."""
+        """Initialize application directories (no-op on ephemeral/read-only deployments)."""
         for folder in [cls.UPLOAD_FOLDER, cls.CLEANED_FOLDER, cls.PROCESSED_FOLDER, cls.ORIGINAL_FOLDER]:
-            Path(folder).mkdir(parents=True, exist_ok=True)
+            try:
+                Path(folder).mkdir(parents=True, exist_ok=True)
+            except OSError:
+                pass  # read-only or ephemeral filesystem — disk storage not used in cloud mode

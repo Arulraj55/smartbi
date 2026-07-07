@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
+from typing import Union
 
 from app.services.analytics.engine import analyze_dataset
 from app.services.analytics_service import calculate_summary_metrics, monthly_summary
@@ -10,6 +13,8 @@ from app.services.domain_service import detect_domain
 from app.services.excel_service import build_dataframe, clean_records, read_excel_records
 from app.services.openrouter_service import detect_domain_ai
 from app.services.validation_service import ValidationResult, validate_records
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -25,7 +30,7 @@ class ProcessingResult:
 
 
 def process_excel_file(
-    file_path: str | Path,
+    file_path: Union[str, Path, BytesIO],
     file_name: str,
     database_service: DatabaseService | None,
     cleaned_folder: str | Path | None = None,
@@ -62,11 +67,16 @@ def process_excel_file(
     summary["insights"] = analytics_engine.get("insights", [])
     summary["ai_result"] = ai_result
 
+    # Only attempt to write cleaned file if folder is provided and writable.
+    # On read-only/ephemeral filesystems (e.g. Render) this is skipped gracefully.
     if cleaned_folder is not None:
-        cleaned_path = Path(cleaned_folder)
-        cleaned_path.mkdir(parents=True, exist_ok=True)
-        cleaned_file_path = cleaned_path / f"{Path(file_name).stem}_cleaned.xlsx"
-        build_dataframe(cleaned_records).to_excel(cleaned_file_path, index=False)
+        try:
+            cleaned_path = Path(cleaned_folder)
+            cleaned_path.mkdir(parents=True, exist_ok=True)
+            cleaned_file_path = cleaned_path / f"{Path(file_name).stem}_cleaned.xlsx"
+            build_dataframe(cleaned_records).to_excel(cleaned_file_path, index=False)
+        except OSError as exc:
+            logger.warning("Could not write cleaned file (read-only filesystem?): %s", exc)
 
     upload_id = None
     if database_service is not None and validation.is_valid:

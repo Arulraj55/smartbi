@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import math
+from io import BytesIO
 from pathlib import Path
+from typing import Union
 
 import pandas as pd
 
@@ -13,7 +15,8 @@ def sanitize_value(value: object) -> object:
     return value
 
 
-def read_excel_records(file_path: str | Path) -> list[dict[str, object]]:
+def read_excel_records(file_path: Union[str, Path, BytesIO]) -> list[dict[str, object]]:
+    """Read Excel records from a file path or an in-memory BytesIO stream."""
     dataframe = pd.read_excel(file_path)
     dataframe.columns = [str(column).strip() for column in dataframe.columns]
     return dataframe.to_dict(orient="records")

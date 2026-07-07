@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import logging
+from io import BytesIO
 
 from flask import Blueprint, current_app, jsonify, request
 
 from app.services.auth_service import login_required
 from app.services.database_service import DatabaseService
-from app.services.file_service import allowed_file, ensure_directories, save_uploaded_file
+from app.services.file_service import allowed_file
 from app.services.processing_service import process_excel_file
 
 uploads_bp = Blueprint("uploads", __name__)
@@ -36,16 +37,10 @@ def list_uploads() -> tuple[dict[str, object], int]:
 @login_required
 def upload_files() -> tuple[dict[str, object], int]:
     from flask import session
-    
+
     uploaded_files = request.files.getlist("files")
     if not uploaded_files:
         return jsonify({"message": "No files were provided."}), 400
-
-    upload_folder = current_app.config["UPLOAD_FOLDER"]
-    cleaned_folder = current_app.config["CLEANED_FOLDER"]
-    original_folder = current_app.config["ORIGINAL_FOLDER"]
-    processed_folder = current_app.config["PROCESSED_FOLDER"]
-    ensure_directories(upload_folder, cleaned_folder, original_folder, processed_folder)
 
     database_service = get_database_service()
     user_id = session.get("user_id")
@@ -57,14 +52,17 @@ def upload_files() -> tuple[dict[str, object], int]:
             continue
 
         try:
-            saved_path = save_uploaded_file(uploaded_file, original_folder)
-            logger.info("Processing upload: %s", saved_path)
+            # Read file into memory — avoids any disk I/O on ephemeral/read-only
+            # filesystems such as Render's free tier.
+            file_stream = BytesIO(uploaded_file.read())
+            logger.info("Processing upload (in-memory): %s", uploaded_file.filename)
+
             processing_result = process_excel_file(
-                saved_path,
+                file_stream,
                 uploaded_file.filename,
                 database_service,
-                current_app.config["CLEANED_FOLDER"],
-                user_id,
+                cleaned_folder=None,   # no local disk writes on cloud deployment
+                user_id=user_id,
             )
             results.append(
                 {
