@@ -144,12 +144,10 @@ class DatabaseService:
             insert into smartbi_clean_rows (upload_id, row_number, row_data)
             values (%s, %s, %s::jsonb)
         """
-        # Insert in batches of 50 with a fresh connection each batch
-        # to avoid Neon serverless idle connection timeouts
-        batch_size = 50
-        for batch_start in range(0, len(records), batch_size):
-            batch = records[batch_start:batch_start + batch_size]
-            with self.connection() as connection:
-                with connection.cursor() as cursor:
-                    for index, record in enumerate(batch, start=batch_start + 1):
-                        cursor.execute(query, (upload_id, index, _safe_dumps(record)))
+        # Insert all rows in a single connection/transaction for speed.
+        # Neon SSL connection setup is ~300ms, so batching per-connection was
+        # adding minutes for large files.
+        with self.connection() as connection:
+            with connection.cursor() as cursor:
+                for index, record in enumerate(records, start=1):
+                    cursor.execute(query, (upload_id, index, _safe_dumps(record)))

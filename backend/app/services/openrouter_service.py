@@ -4,6 +4,7 @@ import json
 import math
 import os
 import urllib.request
+import urllib.error
 from collections import defaultdict
 from typing import Any
 
@@ -11,6 +12,10 @@ from typing import Any
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-oss-120b")
+
+# Hard timeout for the OpenRouter HTTP call — keep well under gunicorn's 120s
+# to leave time for DB inserts and other processing.
+_OPENROUTER_TIMEOUT = 20
 
 
 def _call_openrouter(prompt: str) -> str:
@@ -30,13 +35,13 @@ def _call_openrouter(prompt: str) -> str:
         headers={
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://smartbi.app",
+            "HTTP-Referer": "https://smartbi-backend.onrender.com",
             "X-Title": "SmartBI",
         },
         method="POST",
     )
 
-    with urllib.request.urlopen(req, timeout=30) as response:
+    with urllib.request.urlopen(req, timeout=_OPENROUTER_TIMEOUT) as response:
         result = json.loads(response.read().decode("utf-8"))
         return result["choices"][0]["message"]["content"].strip()
 
