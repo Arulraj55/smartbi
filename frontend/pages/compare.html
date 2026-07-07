@@ -283,24 +283,24 @@
       const selectB = document.getElementById('uploadB');
       const errEl = document.getElementById('errorBanner');
       errEl.style.display = 'none';
+      document.getElementById('compareBtn').disabled = false;
+
+      if (!selectA.value || !selectB.value) return true;
+
+      if (selectA.value === selectB.value) {
+        errEl.textContent = '⚠️ You have selected the same dataset for both options.';
+        errEl.style.display = 'block';
+        document.getElementById('compareBtn').disabled = true;
+        return false;
+      }
 
       const optA = selectA.options[selectA.selectedIndex];
       const optB = selectB.options[selectB.selectedIndex];
-
-      if (selectA.value && selectB.value) {
-        if (optA.dataset.domain !== optB.dataset.domain) {
-          errEl.textContent = `⚠️ Warning: Domains do not match (${optA.dataset.domain} vs ${optB.dataset.domain}). Comparisons must be within the same domain.`;
-          errEl.style.display = 'block';
-          document.getElementById('compareBtn').disabled = true;
-          return false;
-        } else if (selectA.value === selectB.value) {
-          errEl.textContent = `⚠️ Warning: You have selected the same dataset for both options.`;
-          errEl.style.display = 'block';
-          document.getElementById('compareBtn').disabled = true;
-          return false;
-        }
+      if (optA.dataset.domain !== optB.dataset.domain) {
+        errEl.textContent = `⚠️ Domains differ (${optA.dataset.domain} vs ${optB.dataset.domain}). Results may be limited.`;
+        errEl.style.display = 'block';
+        // Don't disable — let server decide, just warn
       }
-      document.getElementById('compareBtn').disabled = false;
       return true;
     }
 
@@ -349,42 +349,38 @@
     function renderKPIComparison(comparison) {
       const grid = document.getElementById('kpiComparisonGrid');
       grid.innerHTML = '';
-      
-      const entries = Object.entries(comparison).filter(([key, metrics]) => {
-        // Exclude internal metadata and keep scalar compare results
-        return !key.startsWith('_') && key !== 'columns' && typeof metrics.old === 'number';
-      });
+
+      // Only show simple scalar comparisons — skip anything with non-numeric values
+      const entries = Object.entries(comparison).filter(([key, metrics]) =>
+        typeof metrics.old === 'number' && typeof metrics.new === 'number'
+      );
 
       if (entries.length === 0) {
-        grid.innerHTML = '<p style="color:#999;">No comparable numeric KPIs found between these datasets.</p>';
+        grid.innerHTML = '<p style="color:#999;grid-column:1/-1;">No comparable numeric metrics found between these datasets.</p>';
         return;
       }
 
       grid.innerHTML = entries.map(([key, item]) => {
-        const cleanName = key.replace(/_/g, ' ').replace(/total|avg|count/gi, m => m.toUpperCase());
-        
-        let badgeClass = 'flat';
-        let arrow = '·';
-        if (item.trend === 'Increase') {
-          badgeClass = 'up';
-          arrow = '↑';
-        } else if (item.trend === 'Decrease') {
-          badgeClass = 'down';
-          arrow = '↓';
-        }
+        const cleanName = key.replace(/_/g, ' ');
+
+        let badgeClass = 'flat', arrow = '·';
+        if (item.trend === 'Increase') { badgeClass = 'up'; arrow = '↑'; }
+        else if (item.trend === 'Decrease') { badgeClass = 'down'; arrow = '↓'; }
+
+        const fmt = v => typeof v === 'number' ? v.toLocaleString(undefined, {maximumFractionDigits:2}) : v;
 
         return `
           <div class="kpi-card">
             <h3>${cleanName}</h3>
             <div class="kpi-comparison">
               <div class="kpi-val-group">
-                <span class="kpi-val-label">Baseline (A)</span>
-                <span class="kpi-val">${item.old.toLocaleString()}</span>
+                <span class="kpi-val-label">Dataset A</span>
+                <span class="kpi-val">${fmt(item.old)}</span>
               </div>
-              <div style="font-size: 20px; color: #ccc;">➔</div>
+              <div style="font-size:20px;color:#ccc;">→</div>
               <div class="kpi-val-group">
-                <span class="kpi-val-label">Target (B)</span>
-                <span class="kpi-val">${item.new.toLocaleString()}</span>
+                <span class="kpi-val-label">Dataset B</span>
+                <span class="kpi-val">${fmt(item.new)}</span>
               </div>
               <div class="kpi-change-badge ${badgeClass}">
                 <span>${arrow}</span>
@@ -392,7 +388,7 @@
               </div>
             </div>
             <div style="font-size:11px;color:#888;margin-top:5px;text-align:right;">
-              Diff: ${item.difference >= 0 ? '+' : ''}${item.difference.toLocaleString()}
+              Diff: ${item.difference >= 0 ? '+' : ''}${fmt(item.difference)}
             </div>
           </div>
         `;
@@ -402,88 +398,80 @@
     function renderComparisonCharts(charts) {
       const section = document.getElementById('comparisonCharts');
       section.innerHTML = '';
+      if (!charts) return;
 
-      if (!charts || (!charts.bar_chart && !charts.trend_chart)) {
-        return;
-      }
+      const barChart = charts.bar_chart;
+      const trendChart = charts.trend_chart;
 
-      // 1. Render Bar Chart
-      if (charts.bar_chart && charts.bar_chart.labels && charts.bar_chart.labels.length > 0) {
+      // Bar chart — side-by-side metrics
+      if (barChart?.labels?.length) {
+        // Limit to 12 labels for readability
+        const labels = barChart.labels.slice(0, 12).map(l => l.replace(/_/g,' '));
+        const dataA = (barChart.datasets?.[0]?.data || []).slice(0, 12);
+        const dataB = (barChart.datasets?.[1]?.data || []).slice(0, 12);
+
         const card = document.createElement('div');
         card.className = 'chart-card';
-        card.innerHTML = `
-          <h3>Metrics Side-by-Side Comparison</h3>
-          <canvas id="compBarChart"></canvas>
-        `;
+        card.innerHTML = '<h3>Metrics Comparison — Dataset A vs B</h3><canvas id="compBarChart"></canvas>';
         section.appendChild(card);
 
         const ctx = document.getElementById('compBarChart').getContext('2d');
         if (chartInstances['compBarChart']) chartInstances['compBarChart'].destroy();
-
         chartInstances['compBarChart'] = new Chart(ctx, {
           type: 'bar',
           data: {
-            labels: charts.bar_chart.labels.map(l => l.replace(/_/g, ' ')),
+            labels,
             datasets: [
-              {
-                label: 'Baseline (A)',
-                data: charts.bar_chart.datasets[0].data,
-                backgroundColor: '#764ba2',
-                borderColor: '#764ba2',
-                borderWidth: 1
-              },
-              {
-                label: 'Target (B)',
-                data: charts.bar_chart.datasets[1].data,
-                backgroundColor: '#00d9ff',
-                borderColor: '#00d9ff',
-                borderWidth: 1
-              }
+              { label: 'Dataset A (Baseline)', data: dataA, backgroundColor: 'rgba(102,126,234,0.75)', borderColor: '#667eea', borderWidth: 1, borderRadius: 5 },
+              { label: 'Dataset B (Target)',   data: dataB, backgroundColor: 'rgba(118,75,162,0.75)', borderColor: '#764ba2', borderWidth: 1, borderRadius: 5 },
             ]
           },
           options: {
             responsive: true,
-            scales: { y: { beginAtZero: true } }
+            plugins: { legend: { position: 'top' } },
+            scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } }, x: { grid: { display: false } } }
           }
         });
       }
 
-      // 2. Render Growth Trend Chart
-      if (charts.trend_chart && charts.trend_chart.labels && charts.trend_chart.labels.length > 0) {
+      // Growth trend chart
+      if (trendChart?.labels?.length) {
+        const labels = trendChart.labels.slice(0, 12).map(l => l.replace(/_/g,' '));
+        const values = (trendChart.values || []).slice(0, 12);
+
         const card = document.createElement('div');
         card.className = 'chart-card';
-        card.innerHTML = `
-          <h3>Growth Trend Percentage (%)</h3>
-          <canvas id="compTrendChart"></canvas>
-        `;
+        card.innerHTML = '<h3>Growth % — B relative to A</h3><canvas id="compTrendChart"></canvas>';
         section.appendChild(card);
 
         const ctx = document.getElementById('compTrendChart').getContext('2d');
         if (chartInstances['compTrendChart']) chartInstances['compTrendChart'].destroy();
-
         chartInstances['compTrendChart'] = new Chart(ctx, {
           type: 'bar',
           data: {
-            labels: charts.trend_chart.labels.map(l => l.replace(/_/g, ' ')),
-            datasets: [
-              {
-                label: 'Growth %',
-                data: charts.trend_chart.values,
-                backgroundColor: charts.trend_chart.values.map(val => val >= 0 ? '#43e97b' : '#fa709a'),
-                borderColor: charts.trend_chart.values.map(val => val >= 0 ? '#43e97b' : '#fa709a'),
-                borderWidth: 1
-              }
-            ]
+            labels,
+            datasets: [{
+              label: 'Growth %',
+              data: values,
+              backgroundColor: values.map(v => v >= 0 ? 'rgba(67,233,123,0.75)' : 'rgba(250,112,154,0.75)'),
+              borderColor: values.map(v => v >= 0 ? '#43e97b' : '#fa709a'),
+              borderWidth: 1,
+              borderRadius: 5,
+            }]
           },
           options: {
             responsive: true,
+            plugins: { legend: { display: false } },
             scales: {
-              y: {
-                ticks: { callback: function(value) { return value + '%'; } }
-              }
+              y: { ticks: { callback: v => v + '%' }, grid: { color: 'rgba(0,0,0,0.05)' } },
+              x: { grid: { display: false } }
             }
           }
         });
+      }
+
+      if (!section.children.length) {
+        section.innerHTML = '<div class="card" style="text-align:center;"><div class="message">No chart data available for this comparison.</div></div>';
       }
     }
 

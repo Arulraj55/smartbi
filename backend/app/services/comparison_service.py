@@ -48,12 +48,15 @@ def compare_uploads(database_service: DatabaseService, upload_a_id: int, upload_
             empty.append("upload_b")
         raise ComparisonError("One or more uploads are empty.", 400, empty)
 
-    analysis_a = analyze_dataset(rows_a)
-    analysis_b = analyze_dataset(rows_b)
-    domain_a = str(analysis_a["domain"]["name"])
-    domain_b = str(analysis_b["domain"]["name"])
+    # Use stored domain_name from DB — avoids re-running domain detection which
+    # can disagree with what was stored at upload time (especially for AI-detected domains).
+    domain_a = str(upload_a.get("domain_name") or "Generic")
+    domain_b = str(upload_b.get("domain_name") or "Generic")
     if domain_a != domain_b:
         raise ComparisonError("Uploads must have matching domains.", 400, [f"upload_a={domain_a}", f"upload_b={domain_b}"])
+
+    analysis_a = analyze_dataset(rows_a)
+    analysis_b = analyze_dataset(rows_b)
 
     old_metrics = _extract_comparable_metrics(analysis_a)
     new_metrics = _extract_comparable_metrics(analysis_b)
@@ -109,10 +112,20 @@ def calculate_metric_change(old_value: float, new_value: float) -> dict[str, flo
 
 def _extract_comparable_metrics(analysis: dict[str, Any]) -> dict[str, float]:
     metrics = {
-        "rows": float(analysis.get("row_count", 0)),
-        "columns": float(analysis.get("column_count", 0)),
+        "Total Rows": float(analysis.get("row_count", 0)),
+        "Total Columns": float(analysis.get("column_count", 0)),
     }
-    metrics.update(_flatten_numeric_metrics(analysis.get("kpis", {})))
+    # Only pull clean scalar KPIs — skip nested dicts/lists/chart payloads
+    kpis = analysis.get("kpis", {})
+    if isinstance(kpis, dict):
+        for key, value in kpis.items():
+            # Skip nested structures entirely
+            if isinstance(value, (dict, list)):
+                continue
+            v = _to_float(value)
+            if v is not None:
+                label = key.replace("_", " ").title()
+                metrics[label] = v
     return metrics
 
 
