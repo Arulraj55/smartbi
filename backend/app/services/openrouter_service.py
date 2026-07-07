@@ -26,7 +26,7 @@ def _call_openrouter(prompt: str) -> str:
         "model": OPENROUTER_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.1,
-        "max_tokens": 1200,
+        "max_tokens": 600,
     }).encode("utf-8")
 
     req = urllib.request.Request(
@@ -103,43 +103,22 @@ def detect_domain_ai(
     Use OpenRouter AI to detect domain, decide visualizations,
     then compute actual chart data from the rows.
     """
-    sample_data = [{k: str(v)[:60] for k, v in row.items()} for row in sample_rows[:5]]
+    # Limit sample to 3 rows and truncate values to keep prompt small and fast
+    sample_data = [{k: str(v)[:40] for k, v in row.items()} for row in sample_rows[:3]]
 
-    prompt = f"""You are a data analyst. Analyze this dataset and respond ONLY with valid JSON.
-
-Columns: {column_names}
-
-Sample rows (first 5):
-{json.dumps(sample_data, indent=2)}
-
-Respond with ONLY this JSON (no markdown, no explanation):
-{{
-  "domain": "<topic like: IPL Cricket, Placement Management, HR Management, Retail Sales, Inventory, Student Attendance, Finance, Generic>",
-  "confidence": <0-100>,
-  "reason": "<one sentence>",
-  "kpis": [
-    {{"label": "<KPI name>", "column": "<numeric column>", "agg": "sum|avg|count"}}
-  ],
-  "visualizations": [
-    {{
-      "title": "<chart title>",
-      "type": "bar|line|pie|doughnut",
-      "label_col": "<column to use as X axis / category>",
-      "value_col": "<numeric column for Y axis>",
-      "agg": "sum|avg|count",
-      "description": "<one line description>"
-    }}
-  ],
-  "insights": ["<insight 1>", "<insight 2>", "<insight 3>"]
-}}
-
-Rules:
-- kpis: pick 4 most important numeric columns, use meaningful labels
-- visualizations: pick exactly 6 most meaningful charts using DIFFERENT columns
-- Each chart must use a different value_col to show different metrics
-- label_col should be the player/person/category name column
-- insights: 3 specific insights about this data
-"""
+    prompt = (
+        "You are a data analyst. Respond ONLY with valid JSON, no markdown.\n\n"
+        f"Columns: {column_names}\n"
+        f"Sample (3 rows): {json.dumps(sample_data)}\n\n"
+        "Return ONLY this JSON:\n"
+        '{"domain":"<IPL Cricket|Placement Management|HR Management|Retail Sales|Inventory|Student Attendance|Finance|Generic>",'
+        '"confidence":<0-100>,'
+        '"reason":"<one sentence>",'
+        '"kpis":[{"label":"<name>","column":"<col>","agg":"sum|avg|count"}],'
+        '"visualizations":[{"title":"<t>","type":"bar|line|pie|doughnut","label_col":"<col>","value_col":"<col>","agg":"sum|avg|count","description":"<one line>"}],'
+        '"insights":["<insight1>","<insight2>","<insight3>"]}\n\n'
+        "Rules: 4 kpis, exactly 4 visualizations using different value_col each, 3 insights."
+    )
 
     try:
         raw = _call_openrouter(prompt)

@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 
 # OpenRouter is called in a thread — if it doesn't finish within this budget,
 # we skip it and fall back to local domain detection so the upload still succeeds.
-_AI_TIMEOUT_SECONDS = 25
+# Set to 35s to give cold-start requests more time while staying under the 180s gunicorn limit.
+_AI_TIMEOUT_SECONDS = 35
 
 
 def _ai_detect_with_timeout(

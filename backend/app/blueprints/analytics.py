@@ -96,6 +96,7 @@ def analytics_dashboard() -> tuple[dict[str, object], int]:
     # ── Fast path: use stored analytics from summary_json ─────────────────
     stored_summary = upload.get("summary_json") or {}
     analytics_engine = stored_summary.get("analytics_engine") if isinstance(stored_summary, dict) else None
+    ai_result = stored_summary.get("ai_result") if isinstance(stored_summary, dict) else None
 
     if (
         analytics_engine
@@ -108,6 +109,44 @@ def analytics_dashboard() -> tuple[dict[str, object], int]:
         # Fallback: fetch rows and re-run analysis (older uploads without stored analytics)
         _, rows = database_service.fetch_upload_dataset(int(upload["id"]))
         analytics_payload = analyze_dataset(rows)
+
+    # ── Prefer AI-computed charts when available ───────────────────────────
+    # AI charts are richer (use actual column data) vs rule-based fallbacks.
+    # Convert computed_charts list → {primary, secondary, tertiary, quaternary} dict.
+    if (
+        isinstance(ai_result, dict)
+        and ai_result.get("ai_powered")
+        and ai_result.get("computed_charts")
+    ):
+        ai_charts = ai_result["computed_charts"]
+        keys = ["primary", "secondary", "tertiary", "quaternary"]
+        ai_chart_dict = {}
+        for i, key in enumerate(keys):
+            if i < len(ai_charts):
+                c = ai_charts[i]
+                ai_chart_dict[key] = {
+                    "labels": c.get("labels", []),
+                    "values": c.get("values", []),
+                    "label": c.get("title", key),
+                    "chart_type": c.get("type", "bar"),
+                }
+            else:
+                ai_chart_dict[key] = {"labels": [], "values": [], "label": "", "chart_type": "bar"}
+        analytics_payload = dict(analytics_payload)
+        analytics_payload["charts"] = ai_chart_dict
+
+        # Also use AI KPIs if available
+        if ai_result.get("computed_kpis"):
+            analytics_payload["kpis"] = ai_result["computed_kpis"]
+
+        # Use AI domain name and insights
+        if ai_result.get("domain") and ai_result.get("confidence", 0) >= 50:
+            analytics_payload["domain"] = {
+                "name": ai_result["domain"],
+                "confidence": round(ai_result["confidence"] / 100, 2),
+            }
+        if ai_result.get("insights"):
+            analytics_payload["insights"] = ai_result["insights"]
 
     recent_uploads = database_service.fetch_all(
         """
