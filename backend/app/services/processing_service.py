@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Union
+from typing import Any, Union
 
 from app.services.analytics.engine import analyze_dataset
 from app.services.analytics_service import calculate_summary_metrics, monthly_summary
@@ -15,6 +16,50 @@ from app.services.openrouter_service import detect_domain_ai
 from app.services.validation_service import ValidationResult, validate_records
 
 logger = logging.getLogger(__name__)
+
+# OpenRouter is called in a thread — if it doesn't finish within this budget,
+# we skip it and fall back to local domain detection so the upload still succeeds.
+_AI_TIMEOUT_SECONDS = 25
+
+
+def _ai_detect_with_timeout(
+    column_names: list[str],
+    cleaned_records: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Run detect_domain_ai in a thread. Returns fallback dict on timeout or error."""
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(detect_domain_ai, column_names, cleaned_records)
+        try:
+            return future.result(timeout=_AI_TIMEOUT_SECONDS)
+        except FuturesTimeoutError:
+            logger.warning("OpenRouter timed out after %ss — using local domain detection.", _AI_TIMEOUT_SECONDS)
+            future.cancel()
+            return {
+                "domain": "Generic",
+                "confidence": 0,
+                "reason": "AI timed out — local detection used.",
+                "visualizations": [],
+                "computed_charts": [],
+                "computed_kpis": {},
+                "kpis": [],
+                "insights": [],
+                "ai_powered": False,
+                "error": "timeout",
+            }
+        except Exception as exc:
+            logger.warning("OpenRouter failed: %s — using local domain detection.", exc)
+            return {
+                "domain": "Generic",
+                "confidence": 0,
+                "reason": f"AI failed: {exc}",
+                "visualizations": [],
+                "computed_charts": [],
+                "computed_kpis": {},
+                "kpis": [],
+                "insights": [],
+                "ai_powered": False,
+                "error": str(exc),
+            }
 
 
 @dataclass(slots=True)
@@ -41,8 +86,9 @@ def process_excel_file(
     validation = validate_records(records, column_names)
     cleaned_records = clean_records(records)
 
-    # Use OpenRouter AI for domain detection and visualization decisions
-    ai_result = detect_domain_ai(column_names, cleaned_records)
+    # Run OpenRouter AI in a thread with a hard timeout so a slow/failing API
+    # never blocks the upload. Falls back to local detection automatically.
+    ai_result = _ai_detect_with_timeout(column_names, cleaned_records)
 
     if ai_result.get("ai_powered") and ai_result.get("confidence", 0) >= 50:
         domain_name = ai_result["domain"]
