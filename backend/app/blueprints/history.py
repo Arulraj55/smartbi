@@ -22,9 +22,10 @@ def history_index() -> tuple[dict[str, object], int]:
 @login_required
 def upload_history() -> tuple[dict[str, object], int]:
     database_service = get_database_service()
+    # Exclude summary_json — it can be megabytes per row and makes the response huge/slow
     rows = database_service.fetch_all(
         """
-        select id, file_name, domain_name, confidence, row_count, summary_json, created_at
+        select id, file_name, domain_name, confidence, row_count, created_at
         from smartbi_uploads
         order by created_at desc
         """
