@@ -15,8 +15,6 @@ class Config:
     ORIGINAL_FOLDER = os.getenv("SMARTBI_ORIGINAL_FOLDER", "backend/original")
     ALLOWED_EXTENSIONS = {"xlsx", "xls"}
     MAX_CONTENT_LENGTH = int(os.getenv("SMARTBI_MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
-    ADMIN_USERNAME = os.getenv("SMARTBI_ADMIN_USERNAME", "admin")
-    ADMIN_PASSWORD = os.getenv("SMARTBI_ADMIN_PASSWORD", "admin123")
     
     # Session configuration — SECURE must be True on HTTPS (Render/production)
     SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
