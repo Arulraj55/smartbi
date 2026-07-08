@@ -29,9 +29,9 @@ def parse_comparison_parameters(query_args: Any) -> tuple[dict[str, Any], list[s
     }, errors
 
 
-def compare_uploads(database_service: DatabaseService, upload_a_id: int, upload_b_id: int, *, include_charts: bool = False, summary_only: bool = False) -> dict[str, Any]:
-    upload_a, rows_a = database_service.fetch_upload_dataset(upload_a_id)
-    upload_b, rows_b = database_service.fetch_upload_dataset(upload_b_id)
+def compare_uploads(database_service: DatabaseService, upload_a_id: int, upload_b_id: int, *, include_charts: bool = False, summary_only: bool = False, user_id: int | None = None) -> dict[str, Any]:
+    upload_a, rows_a = database_service.fetch_upload_dataset(upload_a_id, user_id)
+    upload_b, rows_b = database_service.fetch_upload_dataset(upload_b_id, user_id)
 
     if upload_a is None or upload_b is None:
         missing = []

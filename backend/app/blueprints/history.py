@@ -21,13 +21,8 @@ def history_index() -> tuple[dict[str, object], int]:
 @history_bp.get("/uploads")
 @login_required
 def upload_history() -> tuple[dict[str, object], int]:
+    from flask import session
     database_service = get_database_service()
-    # Exclude summary_json — it can be megabytes per row and makes the response huge/slow
-    rows = database_service.fetch_all(
-        """
-        select id, file_name, domain_name, confidence, row_count, created_at
-        from smartbi_uploads
-        order by created_at desc
-        """
-    )
+    user_id = session.get("user_id")
+    rows = database_service.fetch_uploads_for_user(user_id)
     return jsonify({"items": rows}), 200

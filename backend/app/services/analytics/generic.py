@@ -105,7 +105,7 @@ def _numeric_distribution(
 def _completeness_chart(
     rows: list[dict[str, object]], columns: list[str]
 ) -> dict[str, object]:
-    """Bar chart showing how many non-null values each column has."""
+    """Bar chart showing non-null fill rate per column."""
     total = len(rows) or 1
     col_fill = {
         col: sum(1 for r in rows if r.get(col) not in (None, ""))
@@ -115,7 +115,29 @@ def _completeness_chart(
     return {
         "labels": [k for k, _ in ordered],
         "values": [round(v / total * 100, 1) for _, v in ordered],
-        "label": "Column Completeness (%)",
+        "label": "Column Fill Rate (%)",
+        "chart_type": "bar",
+    }
+
+
+def _numeric_by_category(
+    rows: list[dict[str, object]], cat_col: str, num_col: str, limit: int = 12
+) -> dict[str, object]:
+    """Sum a numeric column grouped by a categorical column."""
+    from collections import defaultdict
+    buckets: dict[str, float] = defaultdict(float)
+    for row in rows:
+        cat = str(row.get(cat_col, "")).strip()
+        val = parse_float(row.get(num_col))
+        if cat and cat.lower() not in ("nan", "none", "") and val is not None:
+            buckets[cat] += val
+    if not buckets:
+        return {"labels": [], "values": [], "label": f"{num_col} by {cat_col}", "chart_type": "bar"}
+    ordered = sorted(buckets.items(), key=lambda x: x[1], reverse=True)[:limit]
+    return {
+        "labels": [k for k, _ in ordered],
+        "values": [round(v, 2) for _, v in ordered],
+        "label": f"{num_col} by {cat_col}",
         "chart_type": "bar",
     }
 
@@ -131,88 +153,112 @@ def analyze(rows: list[dict[str, object]]) -> dict[str, object]:
     missing = count_missing_values(rows)
     dupes = count_duplicate_rows(rows)
 
-    # Build frequency tables for categorical columns (≤20 unique values)
-    freq_tables: dict[str, object] = {}
+    # Detect categorical columns (2–50 unique values)
     categorical_cols: list[str] = []
     for col in columns:
         unique_vals = {str(r.get(col, "")) for r in rows if r.get(col) not in (None, "")}
-        if 2 <= len(unique_vals) <= 20:
-            freq_tables[col] = top_frequencies(rows, [col])
+        if 2 <= len(unique_vals) <= 50:
             categorical_cols.append(col)
 
-    # Auto-detect chart sources
+    # Detect numeric columns by actual values (not just name hints)
+    numeric_cols: list[str] = []
+    for col in columns:
+        if col in categorical_cols:
+            continue
+        values = [parse_float(r.get(col)) for r in rows if r.get(col) not in (None, "")]
+        numeric_values = [v for v in values if v is not None]
+        if len(numeric_values) >= max(5, len(rows) * 0.3):
+            numeric_cols.append(col)
+
+    # Date columns
     date_cols = [c for c in columns if _is_date_col(c)]
-    numeric_cols = [c for c in columns if _is_numeric_col(c) and c not in categorical_cols]
 
     kpis = {
         "row_count": len(rows),
         "column_count": len(columns),
-        "missing_values": missing,
         "duplicate_rows": dupes,
-        "numeric_summary": num_summary,
-        "frequency_tables": freq_tables,
-        "date_distribution": (
-            _date_trend(rows, date_cols[0]) if date_cols else {"labels": [], "values": [], "label": "Date"}
-        ),
+        "missing_values": missing,
     }
 
-    # ── Chart generation (up to 4 charts) ─────────────────────────────────
+    # ── Build 4 distinct charts, each from a DIFFERENT column ─────────────
     charts: dict[str, object] = {}
+    chart_slots = ["primary", "secondary", "tertiary", "quaternary"]
+    slot_idx = 0
+    used_cols: set[str] = set()
 
-    # Chart 1 — date trend (line chart)
+    def add_chart(chart: dict[str, object], col: str) -> None:
+        nonlocal slot_idx
+        if slot_idx >= len(chart_slots):
+            return
+        if not chart.get("labels"):
+            return
+        charts[chart_slots[slot_idx]] = chart
+        used_cols.add(col)
+        slot_idx += 1
+
+    # 1. Date trend line (if date col exists)
     if date_cols:
-        charts["primary"] = _date_trend(rows, date_cols[0])
-    elif categorical_cols:
-        charts["primary"] = _categorical_chart(rows, categorical_cols[0])
-    else:
-        charts["primary"] = _completeness_chart(rows, columns)
+        c = _date_trend(rows, date_cols[0])
+        if c.get("labels"):
+            add_chart(c, date_cols[0])
 
-    # Chart 2 — first categorical column (bar chart)
-    cat_used = 0
-    if categorical_cols:
-        charts["secondary"] = _categorical_chart(rows, categorical_cols[0])
-        cat_used = 1
-    elif numeric_cols:
-        charts["secondary"] = _numeric_distribution(rows, numeric_cols[0])
-    else:
-        charts["secondary"] = _completeness_chart(rows, columns)
+    # 2. Categorical bar charts — one per unique categorical column
+    for cat_col in categorical_cols:
+        if slot_idx >= len(chart_slots):
+            break
+        if cat_col in used_cols:
+            continue
+        # If there's a numeric col, do "sum of numeric by category" (more insightful)
+        paired_num = next((n for n in numeric_cols if n not in used_cols), None)
+        if paired_num:
+            c = _numeric_by_category(rows, cat_col, paired_num, limit=12)
+            if c.get("labels"):
+                add_chart(c, cat_col)
+                used_cols.add(paired_num)
+                continue
+        c = _categorical_chart(rows, cat_col, limit=12)
+        add_chart(c, cat_col)
 
-    # Chart 3 — second categorical or first numeric distribution
-    if len(categorical_cols) > cat_used:
-        charts["tertiary"] = _categorical_chart(rows, categorical_cols[cat_used])
-    elif numeric_cols:
-        charts["tertiary"] = _numeric_distribution(rows, numeric_cols[0])
-    else:
-        charts["tertiary"] = _completeness_chart(rows, columns)
+    # 3. Numeric distribution for any remaining numeric cols
+    for num_col in numeric_cols:
+        if slot_idx >= len(chart_slots):
+            break
+        if num_col in used_cols:
+            continue
+        c = _numeric_distribution(rows, num_col)
+        add_chart(c, num_col)
 
-    # Chart 4 — column completeness overview
-    charts["quaternary"] = _completeness_chart(rows, columns)
+    # 4. Completeness chart as last resort if slots still empty
+    if slot_idx < len(chart_slots):
+        c = _completeness_chart(rows, columns)
+        if c.get("labels"):
+            charts[chart_slots[slot_idx]] = c
+            slot_idx += 1
 
     # ── Insights ──────────────────────────────────────────────────────────
     insights: list[str] = []
     if num_summary.get("count", 0):
         insights.append(
-            f"Found {num_summary['count']} numeric values across all columns "
-            f"(avg {num_summary['average']}, min {num_summary['minimum']}, max {num_summary['maximum']})."
+            f"Dataset has {num_summary['count']} numeric values "
+            f"(avg {num_summary['average']:,}, range {num_summary['minimum']:,}–{num_summary['maximum']:,})."
         )
-    total = len(rows) or 1
     missing_total = missing.get("total", 0)
     if missing_total:
-        pct = round(missing_total / (total * len(columns)) * 100, 1)
-        insights.append(f"{missing_total} missing values found ({pct}% of all cells).")
+        total_cells = len(rows) * len(columns) or 1
+        pct = round(missing_total / total_cells * 100, 1)
+        insights.append(f"{missing_total} missing values detected ({pct}% of cells).")
     if dupes:
-        insights.append(f"{dupes} duplicate rows detected — consider deduplication.")
+        insights.append(f"{dupes} duplicate rows found — deduplication recommended.")
     if date_cols:
-        insights.append(f"Date column detected: '{date_cols[0]}'. Trend chart generated.")
+        insights.append(f"Time series detected on '{date_cols[0]}' — trend chart included.")
     if categorical_cols:
         insights.append(
-            f"{len(categorical_cols)} categorical column(s) identified: "
-            + ", ".join(f"'{c}'" for c in categorical_cols[:4])
-            + ("…" if len(categorical_cols) > 4 else "")
-            + "."
+            f"{len(categorical_cols)} categorical column(s): "
+            + ", ".join(f"'{c}'" for c in categorical_cols[:5])
+            + ("…" if len(categorical_cols) > 5 else "") + "."
         )
     if not insights:
-        insights.append("Dataset processed successfully. Upload domain-specific files for richer analytics.")
+        insights.append("Dataset processed. Upload domain-specific files for richer analytics.")
 
     return {
         "domain": "Generic",

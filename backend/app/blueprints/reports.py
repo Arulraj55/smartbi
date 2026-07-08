@@ -24,6 +24,7 @@ def reports_index() -> tuple[dict[str, object], int]:
 @reports_bp.get("/download")
 @login_required
 def report_download() -> object:
+    from flask import session
     upload_id = request.args.get("upload_id", type=int)
     report_format = request.args.get("format", "")
     compare = str(request.args.get("compare", "")).strip().lower() in {"1", "true", "yes", "on"}
@@ -39,6 +40,7 @@ def report_download() -> object:
     if errors:
         return jsonify({"message": "Invalid report parameters.", "errors": errors}), 400
 
+    user_id = session.get("user_id")
     database_service = DatabaseService(current_app.config["DATABASE_URL"])
     try:
         report_file = generate_report(
@@ -48,6 +50,7 @@ def report_download() -> object:
             filters=filters,
             compare=compare,
             upload_b=upload_b,
+            user_id=user_id,
         )
     except ReportError as error:
         payload: dict[str, object] = {"message": error.message}

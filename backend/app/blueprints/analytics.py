@@ -15,9 +15,11 @@ analytics_bp = Blueprint("analytics", __name__)
 
 
 def get_analytics_context() -> tuple[dict[str, object], list[dict[str, object]]]:
+    from flask import session
     database_service = DatabaseService(current_app.config["DATABASE_URL"])
     upload_id = request.args.get("upload_id", type=int)
-    upload, rows = database_service.fetch_upload_dataset(upload_id)
+    user_id = session.get("user_id")
+    upload, rows = database_service.fetch_upload_dataset(upload_id, user_id)
     if upload is None:
         return {}, []
     return upload, rows
@@ -81,19 +83,19 @@ def latest_analytics() -> tuple[dict[str, object], int]:
 @analytics_bp.get("/dashboard")
 @login_required
 def analytics_dashboard() -> tuple[dict[str, object], int]:
+    from flask import session
     upload_id = request.args.get("upload_id", type=int)
+    user_id = session.get("user_id")
     database_service = DatabaseService(current_app.config["DATABASE_URL"])
 
-    # Fetch upload metadata only (no row fetch needed if summary is stored)
     upload = (
-        database_service.fetch_upload_by_id(upload_id)
+        database_service.fetch_upload_by_id(upload_id, user_id)
         if upload_id
-        else database_service.fetch_latest_upload()
+        else database_service.fetch_latest_upload(user_id)
     )
     if upload is None:
         return jsonify({"message": "No analytics data available."}), 404
 
-    # ── Fast path: use stored analytics from summary_json ─────────────────
     stored_summary = upload.get("summary_json") or {}
     analytics_engine = stored_summary.get("analytics_engine") if isinstance(stored_summary, dict) else None
     ai_result = stored_summary.get("ai_result") if isinstance(stored_summary, dict) else None
@@ -106,13 +108,9 @@ def analytics_dashboard() -> tuple[dict[str, object], int]:
     ):
         analytics_payload = analytics_engine
     else:
-        # Fallback: fetch rows and re-run analysis (older uploads without stored analytics)
-        _, rows = database_service.fetch_upload_dataset(int(upload["id"]))
+        _, rows = database_service.fetch_upload_dataset(int(upload["id"]), user_id)
         analytics_payload = analyze_dataset(rows)
 
-    # ── Prefer AI-computed charts when available ───────────────────────────
-    # AI charts are richer (use actual column data) vs rule-based fallbacks.
-    # Convert computed_charts list → {primary, secondary, tertiary, quaternary} dict.
     if (
         isinstance(ai_result, dict)
         and ai_result.get("ai_powered")
@@ -134,12 +132,8 @@ def analytics_dashboard() -> tuple[dict[str, object], int]:
                 ai_chart_dict[key] = {"labels": [], "values": [], "label": "", "chart_type": "bar"}
         analytics_payload = dict(analytics_payload)
         analytics_payload["charts"] = ai_chart_dict
-
-        # Also use AI KPIs if available
         if ai_result.get("computed_kpis"):
             analytics_payload["kpis"] = ai_result["computed_kpis"]
-
-        # Use AI domain name and insights
         if ai_result.get("domain") and ai_result.get("confidence", 0) >= 50:
             analytics_payload["domain"] = {
                 "name": ai_result["domain"],
@@ -147,15 +141,10 @@ def analytics_dashboard() -> tuple[dict[str, object], int]:
             }
         if ai_result.get("insights"):
             analytics_payload["insights"] = ai_result["insights"]
+        analytics_payload["ai_result"] = ai_result
 
-    recent_uploads = database_service.fetch_all(
-        """
-        select id, file_name, domain_name, confidence, row_count, created_at
-        from smartbi_uploads
-        order by created_at desc
-        limit 10
-        """
-    )
+    # Per-user recent uploads only
+    recent_uploads = database_service.fetch_uploads_for_user(user_id)[:10]
 
     dashboard = {
         "recent_uploads": recent_uploads,
@@ -225,10 +214,12 @@ def analytics_drilldown() -> tuple[dict[str, object], int]:
 @analytics_bp.get("/compare")
 @login_required
 def analytics_compare() -> tuple[dict[str, object], int]:
+    from flask import session
     parameters, errors = parse_comparison_parameters(request.args)
     if errors:
         return jsonify({"message": "Invalid comparison parameters.", "errors": errors}), 400
 
+    user_id = session.get("user_id")
     database_service = DatabaseService(current_app.config["DATABASE_URL"])
     try:
         response = compare_uploads(
@@ -237,6 +228,7 @@ def analytics_compare() -> tuple[dict[str, object], int]:
             int(parameters["upload_b"]),
             include_charts=bool(parameters["chart"]),
             summary_only=bool(parameters["summary_only"]),
+            user_id=user_id,
         )
     except ComparisonError as error:
         payload: dict[str, object] = {"message": error.message}
@@ -328,16 +320,24 @@ def analytics_trends() -> tuple[dict[str, object], int]:
 @analytics_bp.post("/chat")
 @login_required
 def analytics_chat() -> tuple[dict[str, object], int]:
+    from flask import session
     from app.services.chat_service import chat_with_dataset
-    
+
     payload = request.get_json(silent=True) or {}
     upload_id = payload.get("upload_id")
     message = payload.get("message")
-    
+
     if not upload_id or not message:
         return jsonify({"message": "upload_id and message are required."}), 400
-        
+
+    user_id = session.get("user_id")
     database_service = DatabaseService(current_app.config["DATABASE_URL"])
+
+    # Verify the upload belongs to this user
+    upload = database_service.fetch_upload_by_id(int(upload_id), user_id)
+    if upload is None:
+        return jsonify({"message": "Upload not found."}), 404
+
     try:
         response_text = chat_with_dataset(int(upload_id), str(message), database_service)
         return jsonify({"response": response_text}), 200

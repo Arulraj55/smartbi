@@ -88,7 +88,18 @@ class DatabaseService:
             with connection.cursor() as cursor:
                 cursor.execute(query, tuple(parameters or ()))
 
-    def fetch_latest_upload(self) -> dict[str, Any] | None:
+    def fetch_latest_upload(self, user_id: int | None = None) -> dict[str, Any] | None:
+        if user_id is not None:
+            return self.fetch_one(
+                """
+                select id, file_name, domain_name, confidence, row_count, summary_json, created_at
+                from smartbi_uploads
+                where user_id = %s
+                order by created_at desc
+                limit 1
+                """,
+                (user_id,),
+            )
         return self.fetch_one(
             """
             select id, file_name, domain_name, confidence, row_count, summary_json, created_at
@@ -98,7 +109,16 @@ class DatabaseService:
             """
         )
 
-    def fetch_upload_by_id(self, upload_id: int) -> dict[str, Any] | None:
+    def fetch_upload_by_id(self, upload_id: int, user_id: int | None = None) -> dict[str, Any] | None:
+        if user_id is not None:
+            return self.fetch_one(
+                """
+                select id, file_name, domain_name, confidence, row_count, summary_json, created_at
+                from smartbi_uploads
+                where id = %s and user_id = %s
+                """,
+                (upload_id, user_id),
+            )
         return self.fetch_one(
             """
             select id, file_name, domain_name, confidence, row_count, summary_json, created_at
@@ -106,6 +126,25 @@ class DatabaseService:
             where id = %s
             """,
             (upload_id,),
+        )
+
+    def fetch_uploads_for_user(self, user_id: int | None = None) -> list[dict[str, Any]]:
+        if user_id is not None:
+            return self.fetch_all(
+                """
+                select id, file_name, domain_name, confidence, row_count, created_at
+                from smartbi_uploads
+                where user_id = %s
+                order by created_at desc
+                """,
+                (user_id,),
+            )
+        return self.fetch_all(
+            """
+            select id, file_name, domain_name, confidence, row_count, created_at
+            from smartbi_uploads
+            order by created_at desc
+            """
         )
 
     def fetch_upload_rows(self, upload_id: int) -> list[dict[str, Any]]:
@@ -120,8 +159,11 @@ class DatabaseService:
         )
         return [row["row_data"] for row in rows]
 
-    def fetch_upload_dataset(self, upload_id: int | None = None) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-        upload = self.fetch_upload_by_id(upload_id) if upload_id is not None else self.fetch_latest_upload()
+    def fetch_upload_dataset(self, upload_id: int | None = None, user_id: int | None = None) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+        if upload_id is not None:
+            upload = self.fetch_upload_by_id(upload_id, user_id)
+        else:
+            upload = self.fetch_latest_upload(user_id)
         if upload is None:
             return None, []
         return upload, self.fetch_upload_rows(int(upload["id"]))

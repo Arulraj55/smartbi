@@ -52,6 +52,7 @@ def generate_report(
     filters: dict[str, Any] | None = None,
     compare: bool = False,
     upload_b: int | None = None,
+    user_id: int | None = None,
 ) -> ReportFile:
     normalized_format = _normalize_format(report_format)
     if normalized_format not in SUPPORTED_FORMATS:
@@ -61,12 +62,13 @@ def generate_report(
 
     if compare:
         try:
-            comparison = compare_uploads(database_service, upload_id, int(upload_b), include_charts=True)
-        except ComparisonError as error:
-            raise ReportError(error.message, error.status_code, error.errors) from error
+            from app.services.comparison_service import compare_uploads
+            comparison = compare_uploads(database_service, upload_id, int(upload_b), include_charts=True, user_id=user_id)
+        except Exception as error:
+            raise ReportError(str(error), 400) from error
         context = _build_comparison_context(comparison)
     else:
-        upload, rows = database_service.fetch_upload_dataset(upload_id)
+        upload, rows = database_service.fetch_upload_dataset(upload_id, user_id)
         if upload is None:
             raise ReportError("Upload does not exist.", 404, ["upload_id"])
         if not rows:
