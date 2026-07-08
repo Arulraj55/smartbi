@@ -584,7 +584,13 @@
         });
         document.getElementById(tid)?.remove();
         const d = await res.json();
-        log.insertAdjacentHTML('beforeend', `<div class="chat-msg-bot">${(d.response || 'No response.').replace(/\n/g,'<br>').replace(/</g,'&lt;')}</div>`);
+        // Plain text response — convert newlines to <br>, escape HTML
+        const responseText = (d.response || 'No response.')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\n/g, '<br>');
+        log.insertAdjacentHTML('beforeend', `<div class="chat-msg-bot">${responseText}</div>`);
       } catch(err) {
         document.getElementById(tid)?.remove();
         log.insertAdjacentHTML('beforeend', `<div class="chat-msg-bot" style="color:#c33;">Error: ${escHtml(err.message)}</div>`);
